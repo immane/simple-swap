@@ -27,6 +27,10 @@ import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
 import logo from "./logo.svg";
 import "./App.css";
 
+
+const DEFAULT_WETH = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd';
+const DEFAULT_SWAP_ROUTER = '0xD99D1c33F9fC3444f8101754aBC46c52416550D1';
+
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -118,12 +122,12 @@ class App extends React.Component {
     return false;
   };
 
-  openBEP20TokenContract = async (address) => {
+  openContract = async (address, abi = bep20TokenAbi) => {
     const wallet = await this.connectWalletRequest();
     if (wallet) {
       Contract.setProvider("https://data-seed-prebsc-1-s1.binance.org:8545/");
       try {
-        return new Contract(bep20TokenAbi, address, {
+        return new Contract(abi, address, {
           from: wallet,
           gasPrice: 2e10,
         });
@@ -137,7 +141,7 @@ class App extends React.Component {
 
   getBEP20TokenInfo = async (address) => {
     const wallet = await this.connectWalletRequest();
-    const contract = await this.openBEP20TokenContract(address);
+    const contract = await this.openContract(address);
     if (contract) {
       try {
         const tokenInfo = {
@@ -165,7 +169,7 @@ class App extends React.Component {
     const wallet = await this.connectWalletRequest();
     const nonce = await web3.eth.getTransactionCount(wallet);
 
-    const token = await this.openBEP20TokenContract(tokenAddress);
+    const token = await this.openContract(tokenAddress);
     try {
       const decimals = await token.methods.decimals().call();
       const rawData = token.methods
@@ -179,6 +183,74 @@ class App extends React.Component {
         // gasLimit: gasLimit,
         to: tokenAddress,
         value: "0x0",
+        data: rawData,
+      };
+
+      return web3.eth.sendTransaction(rawTransaction);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  approveBEP20Token = async (tokenAddress, spender, amount) => {
+    const web3 = new Web3(window.ethereum);
+    const wallet = await this.connectWalletRequest();
+    const nonce = await web3.eth.getTransactionCount(wallet);
+
+    const token = await this.openContract(tokenAddress);
+    try {
+      const decimals = await token.methods.decimals().call();
+      const rawData = token.methods
+        .approve(spender, amount * Math.pow(10, decimals))
+        .encodeABI();
+
+      const rawTransaction = {
+        from: wallet,
+        nonce: nonce,
+        // gasPrice: await web3.eth.getGasPrice(),
+        // gasLimit: gasLimit,
+        to: tokenAddress,
+        value: "0x0",
+        data: rawData,
+      };
+
+      return web3.eth.sendTransaction(rawTransaction);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  swap = async (fromAddress, toAddress, fromAmount, toAmountMin = 0) => {
+    const web3 = new Web3(window.ethereum);
+    const wallet = await this.connectWalletRequest();
+    const nonce = await web3.eth.getTransactionCount(wallet);
+    const gasLimit = 300000;
+
+    const fromToken = await this.openContract(fromAddress)
+    const toToken = await this.openContract(toAddress)
+    const contract = await this.openContract(DEFAULT_SWAP_ROUTER, iUniswapV2Router02);
+
+    try {
+      const fromDecimals = await fromToken.methods.decimals().call();
+      const toDecimals = await toToken.methods.decimals().call();
+
+      const rawData = contract.methods
+        .swapExactTokensForTokens(
+            fromAmount * Math.pow(10, fromDecimals),
+            toAmountMin * Math.pow(10, toDecimals),
+            DEFAULT_WETH === toAddress 
+                ? [fromAddress, toAddress]
+                : [fromAddress, DEFAULT_WETH, toAddress],
+            this.state.walletAddress,
+            Date.now() + 1000 * 60 * 3
+        )
+        .encodeABI();
+
+      const rawTransaction = {
+        from: wallet,
+        nonce: nonce,
+        to: DEFAULT_SWAP_ROUTER,
+        gasLimit: gasLimit,
         data: rawData,
       };
 
@@ -355,6 +427,12 @@ class App extends React.Component {
                         },
                       }))}
                       endIcon={<ThumbUpIcon />}
+                      onClick={this.approveBEP20Token.bind(
+                        this,
+                        this.state.fromTokenAddress,
+                        DEFAULT_SWAP_ROUTER,
+                        this.state.fromAmount
+                      )}
                     >
                         1. Approve
                     </Button>
@@ -370,11 +448,12 @@ class App extends React.Component {
                         },
                       }))}
                       endIcon={<SwapVertIcon />}
-                      onClick={this.makeBEP20RawTransaction.bind(
+                      onClick={this.swap.bind(
                         this,
                         this.state.fromTokenAddress,
-                        this.state.walletAddress,
-                        this.state.fromAmount
+                        this.state.toTokenAddress,
+                        this.state.fromAmount,
+                        this.state.toAmount,
                       )}
                     >
                         2. SWAP
