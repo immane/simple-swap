@@ -1,15 +1,28 @@
 import React from "react";
+import { BrowserRouter as Router, Switch, Route } from "react-router-dom";
+import PropTypes from "prop-types";
+import NumberFormat from "react-number-format";
 
-import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import TextField from "@material-ui/core/TextField";
+import IconButton from "@material-ui/core/IconButton";
+import SwapVertIcon from '@material-ui/icons/SwapVert';
+import Info from "@material-ui/icons/Info";
+import ThumbUpIcon from '@material-ui/icons/ThumbUp';
 
-import { ThemeProvider } from "styled-components";
-import { light, dark, Toast } from "@pancakeswap-libs/uikit";
+import clsx from "clsx";
+import { makeStyles } from "@material-ui/core/styles";
+import useMediaQuery from "@material-ui/core/useMediaQuery";
+import { createTheme, ThemeProvider } from "@material-ui/core/styles";
+import CssBaseline from "@material-ui/core/CssBaseline";
 
-import { ethers } from "ethers";
+import Button from "@material-ui/core/Button";
+import Icon from "@material-ui/core/Icon";
 
 import Web3 from "web3";
 import Contract from "web3-eth-contract";
 import bep20TokenAbi from "./abi/BEP20Token.abi.json";
+import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
 
 import logo from "./logo.svg";
 import "./App.css";
@@ -17,14 +30,60 @@ import "./App.css";
 class App extends React.Component {
   constructor(props) {
     super(props);
+
     this.state = {
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
       toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      fromBalance: 0,
       fromAmount: 0,
       toAmount: 0,
     };
+
+    this.NumberFormatCustom.propTypes = {
+      inputRef: PropTypes.func.isRequired,
+      name: PropTypes.string.isRequired,
+      onChange: PropTypes.func.isRequired,
+    };
   }
+
+  classes = makeStyles((theme) => ({
+    root: {
+      display: "flex",
+      flexWrap: "wrap",
+    },
+    margin: {
+      margin: theme.spacing(1),
+    },
+    withoutLabel: {
+      marginTop: theme.spacing(3),
+    },
+    textField: {
+      width: "25ch",
+    },
+  }));
+
+  NumberFormatCustom = (props) => {
+    const { inputRef, onChange, ...other } = props;
+
+    return (
+      <NumberFormat
+        {...other}
+        getInputRef={inputRef}
+        onValueChange={(values) => {
+          onChange({
+            target: {
+              name: props.name,
+              value: values.value,
+            },
+          });
+        }}
+        thousandSeparator
+        isNumericString
+        prefix="$ "
+      />
+    );
+  };
 
   valueChange = (event) => {
     this.setState({
@@ -129,64 +188,18 @@ class App extends React.Component {
     }
   };
 
-  pancakeswapTest() {
-  /*
-    const {
-      ChainId,
-      Fetcher,
-      WETH,
-      Route,
-      Trade,
-      TokenAmount,
-      TradeType,
-    } = require("@pancakeswap-libs/sdk");
-
-    const chainId = ChainId.MAINNET;
-    const bscProvider = new ethers.providers.JsonRpcProvider(
-      "https://data-seed-prebsc-1-s1.binance.org:8545/"
-    );
-
-    const init = async () => {
-      const blockNumber = await bscProvider.getBlockNumber();
-      console.log(blockNumber);
-
-      const abcAbi = [
-        // Some details about the token
-        "function name() view returns (string)",
-        "function symbol() view returns (string)",
-
-        // Get the account balance
-        "function balanceOf(address) view returns (uint)",
-
-        // Send some of your tokens to someone else
-        "function transfer(address to, uint amount)",
-
-        // An event triggered whenever anyone transfers to someone else
-        "event Transfer(address indexed from, address indexed to, uint amount)",
-      ];
-
-      // The Contract object
-      const abcAddresss = "0x2ec46b509ab89f123b8ef0656a2dc6ed1e50a1c6";
-      const abcContract = new ethers.Contract(abcAddresss, abcAbi, bscProvider);
-
-      console.log(
-        "Contract info",
-        await abcContract.name(),
-        await abcContract.symbol()
-      );
-
-      // const balance = await bscProvider.getBalance(tokenAddresss)
-      // console.log(ethers.utils.formatEther(balance));
-    };
-  */
-  }
-
   render() {
+    const darkTheme = createTheme({
+      palette: {
+        type: "dark",
+      },
+    });
+
     return (
-      <Router>
-        <Switch>
-          <Route path="/">
-            <ThemeProvider theme={dark}>
+      <ThemeProvider theme={darkTheme}>
+        <Router>
+          <Switch>
+            <Route path="/">
               <div className="App">
                 <header className="App-header">
                   <img src={logo} className="App-logo" alt="logo" />
@@ -202,81 +215,181 @@ class App extends React.Component {
                         )}...${this.state.walletAddress.slice(-4)}`
                       : "Connect to wallet"}
                   </p>
-                  <form
-                    style={{
-                      width: "100%",
-                    }}
-                  >
-                    <span> From Contract address </span> <br />
-                    <input
-                      type="text"
+                  <br/>
+
+                  <form>
+                    <TextField
+                      label="From Contract Address"
+                      id="outlined-start-adornment"
+                      className={clsx(
+                        this.classes.margin,
+                        this.classes.textField
+                      )}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"></InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={this.getBEP20TokenInfo.bind(
+                                this,
+                                this.state.fromTokenAddress
+                              )}
+                              edge="end"
+                            >
+                              <Info />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      variant="outlined"
                       name="fromTokenAddress"
                       value={this.state.fromTokenAddress}
                       onChange={this.valueChange}
                     />
-                    <input
-                      type="button"
-                      value="Info"
-                      onClick={this.getBEP20TokenInfo.bind(
-                        this,
-                        this.state.fromTokenAddress
-                      )}
-                    />
                     <br />
-                    <span> From amount </span> <br />
-                    <input
-                      type="number"
-                      step="0.01"
+                    <br />
+
+                    <TextField
+                      label={`From Amount (Balance: ${this.state.fromBalance})`}
+                      id="outlined-start-adornment"
+                      className={clsx(
+                        this.classes.margin,
+                        this.classes.textField
+                      )}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"></InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={this.getBEP20TokenInfo.bind(
+                                this,
+                                this.state.fromTokenAddress
+                              )}
+                              edge="end"
+                            >
+                              <Info />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                        inputComponent: this.NumberFormatCustom,
+                      }}
+                      variant="outlined"
                       name="fromAmount"
                       value={this.state.fromAmount}
                       onChange={this.valueChange}
                     />
                     <br />
                     <br />
-                    <span> To Contract address </span> <br />
-                    <input
-                      type="text"
+
+                    <TextField
+                      label="To Contract Address"
+                      id="outlined-start-adornment"
+                      className={clsx(
+                        this.classes.margin,
+                        this.classes.textField
+                      )}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"></InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={this.getBEP20TokenInfo.bind(
+                                this,
+                                this.state.toTokenAddress
+                              )}
+                              edge="end"
+                            >
+                              <Info />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      variant="outlined"
                       name="toTokenAddress"
                       value={this.state.toTokenAddress}
                       onChange={this.valueChange}
                     />
-                    <input
-                      type="button"
-                      value="Info"
-                      onClick={this.getBEP20TokenInfo.bind(
-                        this,
-                        this.state.toTokenAddress
-                      )}
-                    />
                     <br />
-                    <span> To amount </span> <br />
-                    <input
-                      type="number"
-                      step="0.01"
+                    <br />
+
+                    <TextField
+                      label={`To Amount`}
+                      id="outlined-start-adornment"
+                      className={clsx(
+                        this.classes.margin,
+                        this.classes.textField
+                      )}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"></InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton edge="end">
+                              <Info />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                        inputComponent: this.NumberFormatCustom,
+                      }}
+                      variant="outlined"
                       name="toAmount"
                       value={this.state.toAmount}
                       onChange={this.valueChange}
                     />
                     <br />
                     <br />
-                    <input
-                      type="button"
-                      value="SWAP"
+
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      className={makeStyles((theme) => ({
+                        button: {
+                          margin: theme.spacing(1),
+                        },
+                      }))}
+                      endIcon={<ThumbUpIcon />}
+                    >
+                        1. Approve
+                    </Button>
+                    
+                    &emsp;
+
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      className={makeStyles((theme) => ({
+                        button: {
+                          margin: theme.spacing(1),
+                        },
+                      }))}
+                      endIcon={<SwapVertIcon />}
                       onClick={this.makeBEP20RawTransaction.bind(
                         this,
                         this.state.fromTokenAddress,
                         this.state.walletAddress,
                         this.state.fromAmount
                       )}
-                    />
+                    >
+                        2. SWAP
+                    </Button>
+
+                    <br/>
+                    <br/>
                   </form>
                 </header>
               </div>
-            </ThemeProvider>
-          </Route>
-          <Route> No route </Route>
-        </Switch>
-      </Router>
+            </Route>
+            <Route> No route </Route>
+          </Switch>
+        </Router>
+      </ThemeProvider>
     );
   }
 }
