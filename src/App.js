@@ -224,7 +224,7 @@ class App extends React.Component {
     const web3 = new Web3(window.ethereum);
     const wallet = await this.connectWalletRequest();
     const nonce = await web3.eth.getTransactionCount(wallet);
-    const gasLimit = 300000;
+    const gasLimit = 200000;
 
     const fromToken = await this.openContract(fromAddress)
     const toToken = await this.openContract(toAddress)
