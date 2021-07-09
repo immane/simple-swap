@@ -5,6 +5,7 @@
   "dependencies": {
     "@material-ui/core": "^4.12.1",
     "@material-ui/icons": "^4.11.2",
+    "@material-ui/lab": "^4.0.0-alpha.60",
     "@pancakeswap-libs/sdk": "^1.0.1",
     "@pancakeswap-libs/uikit": "^0.29.4",
     "@testing-library/jest-dom": "^5.12.0",

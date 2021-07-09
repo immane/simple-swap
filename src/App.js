@@ -15,6 +15,10 @@ import { makeStyles } from "@material-ui/core/styles";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
 
 import Button from "@material-ui/core/Button";
+import Snackbar from '@material-ui/core/Snackbar';
+import MuiAlert, { AlertProps } from '@material-ui/lab/Alert';
+import { Theme } from '@material-ui/core/styles';
+
 
 import Web3 from "web3";
 import Contract from "web3-eth-contract";
@@ -35,6 +39,10 @@ class App extends React.Component {
     super(props);
 
     this.state = {
+      openAlert: false,
+      alertType: 'info',
+      alertMessage: 'Unknown error',
+      
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
       toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
@@ -51,6 +59,22 @@ class App extends React.Component {
       onChange: PropTypes.func.isRequired,
     };
   }
+
+  showToast = (message, type = 'info') => {
+    this.setState({
+      alertMessage: message,
+      alertType: type,
+      openAlert: true, 
+    });
+  };
+
+  handleAlertClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+
+    this.setState({ openAlert: false });
+  };
 
   NumberFormatCustom = (props) => {
     const { inputRef, onChange, ...other } = props;
@@ -116,7 +140,7 @@ class App extends React.Component {
           gasPrice: 2e10,
         });
       } catch (e) {
-        alert(e.message);
+        this.showToast(e.message, 'error');
       }
     } else {
       return false;
@@ -138,12 +162,11 @@ class App extends React.Component {
             10 ** (await contract.methods?.decimals().call()),
           address: address,
         };
-        console.log("Token info:", tokenInfo);
-        // alert(JSON.stringify(tokenInfo));
+        this.showToast(`Raw token info: ${JSON.stringify(tokenInfo)}`, 'info');
 
         return tokenInfo;
       } catch (e) {
-        alert(e.message);
+        this.showToast(e.message, 'error');
       }
     } else return false;
   };
@@ -179,9 +202,11 @@ class App extends React.Component {
         data: rawData,
       };
 
-      return web3.eth.sendTransaction(rawTransaction);
+      const result = await web3.eth.sendTransaction(rawTransaction); 
+      this.showToast('Send transaction success', 'success');
+      return result;
     } catch (e) {
-      alert(e.message);
+      this.showToast(e.message, 'error');
     }
   };
 
@@ -207,9 +232,12 @@ class App extends React.Component {
         data: rawData,
       };
 
-      return web3.eth.sendTransaction(rawTransaction);
+      const result = await web3.eth.sendTransaction(rawTransaction); 
+      console.log('Approve log:', result);
+      this.showToast('Send transaction success', 'success');
+      return result;
     } catch (e) {
-      alert(e.message);
+      this.showToast(e.message, 'error');
     }
   };
 
@@ -245,9 +273,11 @@ class App extends React.Component {
         data: rawData,
       };
 
-      return web3.eth.sendTransaction(rawTransaction);
+      const result = await web3.eth.sendTransaction(rawTransaction); 
+      this.showToast('Send transaction success', 'success');
+      return result;
     } catch (e) {
-      alert(e.message);
+      this.showToast(e.message, 'error');
     }
   };
 
@@ -265,6 +295,12 @@ class App extends React.Component {
           <Switch>
             <Route path="/">
               <div className="App">
+                <Snackbar open={this.state.openAlert} autoHideDuration={6000} onClose={this.handleAlertClose}>
+                  <MuiAlert elevation={6} variant="filled" severity={ this.state.alertType } onClose={this.handleAlertClose}>
+                    { this.state.alertMessage } 
+                  </MuiAlert>
+                </Snackbar>
+
                 <header className="App-header">
                   <img src={logo} className="App-logo" alt="logo" />
                   <p
