@@ -6,19 +6,20 @@ import NumberFormat from "react-number-format";
 import InputAdornment from "@material-ui/core/InputAdornment";
 import TextField from "@material-ui/core/TextField";
 import IconButton from "@material-ui/core/IconButton";
-import SwapVertIcon from '@material-ui/icons/SwapVert';
+import SwapVertIcon from "@material-ui/icons/SwapVert";
 import Info from "@material-ui/icons/Info";
-import ThumbUpIcon from '@material-ui/icons/ThumbUp';
+import ThumbUpIcon from "@material-ui/icons/ThumbUp";
+import PeopleIcon from "@material-ui/icons/People";
+import AutorenewIcon from "@material-ui/icons/Autorenew";
 
 import clsx from "clsx";
 import { makeStyles } from "@material-ui/core/styles";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
 
 import Button from "@material-ui/core/Button";
-import Snackbar from '@material-ui/core/Snackbar';
-import MuiAlert, { AlertProps } from '@material-ui/lab/Alert';
-import { Theme } from '@material-ui/core/styles';
-
+import Snackbar from "@material-ui/core/Snackbar";
+import MuiAlert, { AlertProps } from "@material-ui/lab/Alert";
+import { Theme } from "@material-ui/core/styles";
 
 import Web3 from "web3";
 import Contract from "web3-eth-contract";
@@ -29,9 +30,8 @@ import logo from "./logo.svg";
 import "./App.css";
 
 // Constrant
-const DEFAULT_WETH = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd';
-const DEFAULT_SWAP_ROUTER = '0xD99D1c33F9fC3444f8101754aBC46c52416550D1';
-
+const DEFAULT_WETH = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";
+const DEFAULT_SWAP_ROUTER = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
 
 // Main
 class App extends React.Component {
@@ -40,9 +40,9 @@ class App extends React.Component {
 
     this.state = {
       openAlert: false,
-      alertType: 'info',
-      alertMessage: 'Unknown error',
-      
+      alertType: "info",
+      alertMessage: "Unknown error",
+
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
       toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
@@ -60,16 +60,16 @@ class App extends React.Component {
     };
   }
 
-  showToast = (message, type = 'info') => {
+  showToast = (message, type = "info") => {
     this.setState({
       alertMessage: message,
       alertType: type,
-      openAlert: true, 
+      openAlert: true,
     });
   };
 
   handleAlertClose = (event, reason) => {
-    if (reason === 'clickaway') {
+    if (reason === "clickaway") {
       return;
     }
 
@@ -140,14 +140,14 @@ class App extends React.Component {
           gasPrice: 2e10,
         });
       } catch (e) {
-        this.showToast(e.message, 'error');
+        this.showToast(e.message, "error");
       }
     } else {
       return false;
     }
   };
 
-  getBEP20TokenInfo = async (address) => {
+  getTokenInfo = async (address) => {
     const wallet = await this.connectWalletRequest();
     const contract = await this.openContract(address);
     if (contract) {
@@ -165,119 +165,95 @@ class App extends React.Component {
 
         return tokenInfo;
       } catch (e) {
-        this.showToast(e.message, 'error');
+        this.showToast(e.message, "error");
       }
     } else return false;
   };
 
-  storeBEP20TokenInfo = async (address, variable) => {
-    const info = await this.getBEP20TokenInfo(address)
-    if(info) {
-      this.setState({ [variable]: info })
-      return info
+  storeTokenInfo = async (address, variable) => {
+    const info = await this.getTokenInfo(address);
+    if (info) {
+      this.setState({ [variable]: info });
+      return info;
     }
-    return false
-  }
+    return false;
+  };
 
-  makeBEP20RawTransaction = async (tokenAddress, to, amount) => {
+  sendTransaction = async (contractAddress, rawData) => {
     const web3 = new Web3(window.ethereum);
     const wallet = await this.connectWalletRequest();
     const nonce = await web3.eth.getTransactionCount(wallet);
 
-    const token = await this.openContract(tokenAddress);
     try {
-      const decimals = await token.methods.decimals().call();
-      const rawData = token.methods
-        .transfer(to, amount * Math.pow(10, decimals))
-        .encodeABI();
+      const rawDataInstance = Object.prototype.toString.call(rawData);
+      let data = rawData;
+      if ("[object AsyncFunction]" === rawDataInstance) {
+        data = await rawData();
+      } else if ("[object Function]" === rawDataInstance) {
+        data = rawData();
+      }
 
       const rawTransaction = {
         from: wallet,
         nonce: nonce,
         // gasPrice: await web3.eth.getGasPrice(),
-        // gasLimit: gasLimit,
-        to: tokenAddress,
+        gasLimit: 200000,
+        to: contractAddress,
         value: "0x0",
-        data: rawData,
+        data: data,
       };
+      console.log("Raw transaction: ", rawTransaction);
 
-      const result = await web3.eth.sendTransaction(rawTransaction); 
-      this.showToast('Send transaction success', 'success');
+      const result = await web3.eth.sendTransaction(rawTransaction);
+      this.showToast("Send transaction success", "success");
       return result;
     } catch (e) {
-      this.showToast(e.message, 'error');
+      console.log(e);
+      this.showToast(e.message, "error");
     }
   };
 
-  approveBEP20Token = async (tokenAddress, spender, amount) => {
-    const web3 = new Web3(window.ethereum);
-    const wallet = await this.connectWalletRequest();
-    const nonce = await web3.eth.getTransactionCount(wallet);
-
-    const token = await this.openContract(tokenAddress);
-    try {
-      const decimals = await token.methods.decimals().call();
-      const rawData = token.methods
-        .approve(spender, amount * Math.pow(10, decimals))
+  transfer = async (tokenAddress, to, amount) => {
+    return this.sendTransaction(tokenAddress, async () => {
+      const contract = await this.openContract(tokenAddress);
+      const decimals = await contract.methods.decimals().call();
+      return contract.methods
+        .transfer(to, String(amount * Math.pow(10, decimals)))
         .encodeABI();
+    });
+  };
 
-      const rawTransaction = {
-        from: wallet,
-        nonce: nonce,
-        // gasPrice: await web3.eth.getGasPrice(),
-        // gasLimit: gasLimit,
-        to: tokenAddress,
-        value: "0x0",
-        data: rawData,
-      };
-
-      const result = await web3.eth.sendTransaction(rawTransaction); 
-      console.log('Approve log:', result);
-      this.showToast('Send transaction success', 'success');
-      return result;
-    } catch (e) {
-      this.showToast(e.message, 'error');
-    }
+  approve = async (tokenAddress, spender, amount) => {
+    return this.sendTransaction(tokenAddress, async () => {
+      const contract = await this.openContract(tokenAddress);
+      const decimals = await contract.methods.decimals().call();
+      return contract.methods
+        .approve(spender, String(amount * Math.pow(10, decimals)))
+        .encodeABI();
+    });
   };
 
   swap = async (fromAddress, toAddress, fromAmount, toAmountMin = 0) => {
-    const web3 = new Web3(window.ethereum);
-    const wallet = await this.connectWalletRequest();
-    const nonce = await web3.eth.getTransactionCount(wallet);
-    const gasLimit = 200000;
-
-    const fromToken = await this.openContract(fromAddress)
-    const toToken = await this.openContract(toAddress)
-    const contract = await this.openContract(DEFAULT_SWAP_ROUTER, iUniswapV2Router02);
-
-    try {
+    return this.sendTransaction(DEFAULT_SWAP_ROUTER, async () => {
+      const fromToken = await this.openContract(fromAddress);
+      const toToken = await this.openContract(toAddress);
+      const contract = await this.openContract(
+        DEFAULT_SWAP_ROUTER,
+        iUniswapV2Router02
+      );
       const fromDecimals = await fromToken.methods.decimals().call();
       const toDecimals = await toToken.methods.decimals().call();
 
-      const rawData = contract.methods
+      return contract.methods
         .swapExactTokensForTokens(
-            fromAmount * Math.pow(10, fromDecimals),
-            toAmountMin * Math.pow(10, toDecimals),
-            [...new Set([fromAddress, DEFAULT_WETH, toAddress])],
-            this.state.walletAddress,
-            Date.now() + 1000 * 60 * 3
+          String(fromAmount * Math.pow(10, fromDecimals)),
+          String(toAmountMin * Math.pow(10, toDecimals)),
+          [...new Set([fromAddress, DEFAULT_WETH, toAddress])],
+          this.state.walletAddress,
+          Date.now() + 1000 * 60 * 3
         )
         .encodeABI();
-
-      const rawTransaction = {
-        from: wallet,
-        nonce: nonce,
-        to: DEFAULT_SWAP_ROUTER,
-        gasLimit: gasLimit,
-        data: rawData,
-      };
-
-      const result = await web3.eth.sendTransaction(rawTransaction); 
-      this.showToast('Send transaction success', 'success');
-      return result;
-    } catch (e) {
-      this.showToast(e.message, 'error');
-    }
+    });
   };
 
   render() {
@@ -294,9 +270,18 @@ class App extends React.Component {
           <Switch>
             <Route path="/">
               <div className="App">
-                <Snackbar open={this.state.openAlert} autoHideDuration={6000} onClose={this.handleAlertClose}>
-                  <MuiAlert elevation={6} variant="filled" severity={ this.state.alertType } onClose={this.handleAlertClose}>
-                    { this.state.alertMessage } 
+                <Snackbar
+                  open={this.state.openAlert}
+                  autoHideDuration={6000}
+                  onClose={this.handleAlertClose}
+                >
+                  <MuiAlert
+                    elevation={6}
+                    variant="filled"
+                    severity={this.state.alertType}
+                    onClose={this.handleAlertClose}
+                  >
+                    {this.state.alertMessage}
                   </MuiAlert>
                 </Snackbar>
 
@@ -314,16 +299,13 @@ class App extends React.Component {
                         )}...${this.state.walletAddress.slice(-4)}`
                       : "Connect to wallet"}
                   </p>
-                  <br/>
+                  <br />
 
                   <form>
                     <TextField
                       label="From Contract Address"
                       id="outlined-start-adornment"
-                      className={clsx(
-                        classes.margin,
-                        classes.textField
-                      )}
+                      className={clsx(classes.margin, classes.textField)}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start"></InputAdornment>
@@ -332,11 +314,15 @@ class App extends React.Component {
                           <InputAdornment position="end">
                             <IconButton
                               onClick={() => {
-                                this.getBEP20TokenInfo(this.state.fromTokenAddress).then(res => {
+                                this.getTokenInfo(
+                                  this.state.fromTokenAddress
+                                ).then((res) => {
                                   this.showToast(
-                                    `Raw Token Information: ${JSON.stringify(res)}`
-                                  )
-                                })
+                                    `Raw Token Information: ${JSON.stringify(
+                                      res
+                                    )}`
+                                  );
+                                });
                               }}
                               edge="end"
                             >
@@ -352,30 +338,30 @@ class App extends React.Component {
                     />
                     <br />
                     <br />
-
                     <TextField
-                      label={`From Amount (Balance: ${this.state.fromTokenInfo?.balance ?? 0})`}
+                      label={`From Amount (Balance: ${
+                        this.state.fromTokenInfo?.balance ?? 0
+                      })`}
                       id="outlined-start-adornment"
-                      className={clsx(
-                        classes.margin,
-                        classes.textField
-                      )}
+                      className={clsx(classes.margin, classes.textField)}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            { this.state.fromTokenInfo?.symbol }
+                            {this.state.fromTokenInfo?.symbol}
                           </InputAdornment>
                         ),
                         endAdornment: (
                           <InputAdornment position="end">
                             <span
-                            onClick={() => {
-                              this.setState({
-                                fromAmount: this.state.fromTokenInfo?.balance
-                              })
-                            }}
-                            style={{ cursor: 'pointer' }}
-                            >Max</span>
+                              onClick={() => {
+                                this.setState({
+                                  fromAmount: this.state.fromTokenInfo?.balance,
+                                });
+                              }}
+                              style={{ cursor: "pointer" }}
+                            >
+                              Max
+                            </span>
                           </InputAdornment>
                         ),
                         inputComponent: this.NumberFormatCustom,
@@ -384,22 +370,41 @@ class App extends React.Component {
                       name="fromAmount"
                       value={this.state.fromAmount}
                       onChange={this.valueChange}
-                      onFocus={this.storeBEP20TokenInfo.bind(
+                      onFocus={this.storeTokenInfo.bind(
                         this,
                         this.state.fromTokenAddress,
-                        'fromTokenInfo'
+                        "fromTokenInfo"
                       )}
                     />
                     <br />
+                    <AutorenewIcon
+                      style={{ color: "#61dafb", height: "2em" }}
+                      onClick={() => {
+                        this.setState(
+                          {
+                            fromTokenAddress: this.state.toTokenAddress,
+                            toTokenAddress: this.state.fromTokenAddress,
+                            fromAmount: this.state.toAmount,
+                            toAmount: this.state.fromAmount,
+                          },
+                          () => {
+                            this.storeTokenInfo(
+                              this.state.fromTokenAddress,
+                              "fromTokenInfo"
+                            );
+                            this.storeTokenInfo(
+                              this.state.toTokenAddress,
+                              "toTokenInfo"
+                            );
+                          }
+                        );
+                      }}
+                    />
                     <br />
-
                     <TextField
                       label="To Contract Address"
                       id="outlined-start-adornment"
-                      className={clsx(
-                        classes.margin,
-                        classes.textField
-                      )}
+                      className={clsx(classes.margin, classes.textField)}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start"></InputAdornment>
@@ -408,11 +413,15 @@ class App extends React.Component {
                           <InputAdornment position="end">
                             <IconButton
                               onClick={() => {
-                                this.getBEP20TokenInfo(this.state.toTokenAddress).then(res => {
+                                this.getTokenInfo(
+                                  this.state.toTokenAddress
+                                ).then((res) => {
                                   this.showToast(
-                                    `Raw Token Information: ${JSON.stringify(res)}`
-                                  )
-                                })
+                                    `Raw Token Information: ${JSON.stringify(
+                                      res
+                                    )}`
+                                  );
+                                });
                               }}
                               edge="end"
                             >
@@ -428,18 +437,14 @@ class App extends React.Component {
                     />
                     <br />
                     <br />
-
                     <TextField
                       label={`Minimum To Amount`}
                       id="outlined-start-adornment"
-                      className={clsx(
-                        classes.margin,
-                        classes.textField
-                      )}
+                      className={clsx(classes.margin, classes.textField)}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            { this.state.toTokenInfo?.symbol }
+                            {this.state.toTokenInfo?.symbol}
                           </InputAdornment>
                         ),
                         inputComponent: this.NumberFormatCustom,
@@ -448,15 +453,14 @@ class App extends React.Component {
                       name="toAmount"
                       value={this.state.toAmount}
                       onChange={this.valueChange}
-                      onFocus={this.storeBEP20TokenInfo.bind(
+                      onFocus={this.storeTokenInfo.bind(
                         this,
                         this.state.toTokenAddress,
-                        'toTokenInfo'
+                        "toTokenInfo"
                       )}
                     />
                     <br />
                     <br />
-
                     <Button
                       variant="contained"
                       color="primary"
@@ -465,19 +469,17 @@ class App extends React.Component {
                           margin: theme.spacing(1),
                         },
                       }))}
-                      endIcon={<ThumbUpIcon />}
-                      onClick={this.approveBEP20Token.bind(
+                      endIcon={<PeopleIcon />}
+                      onClick={this.approve.bind(
                         this,
                         this.state.fromTokenAddress,
                         DEFAULT_SWAP_ROUTER,
                         this.state.fromAmount
                       )}
                     >
-                        1. Approve
+                      Approve
                     </Button>
-                    
                     &emsp;
-
                     <Button
                       variant="contained"
                       color="secondary"
@@ -492,14 +494,13 @@ class App extends React.Component {
                         this.state.fromTokenAddress,
                         this.state.toTokenAddress,
                         this.state.fromAmount,
-                        this.state.toAmount,
+                        this.state.toAmount
                       )}
                     >
-                        2. SWAP
+                      SWAP
                     </Button>
-
-                    <br/>
-                    <br/>
+                    <br />
+                    <br />
                   </form>
                 </header>
               </div>
@@ -513,11 +514,13 @@ class App extends React.Component {
 }
 
 export default () => {
+  const focusedColor = "rgb(97, 218, 251)";
   const useStyles = makeStyles((theme) => ({
     root: {
-      display: 'flex',
-      flexWrap: 'wrap',
+      display: "flex",
+      flexWrap: "wrap",
     },
+    focused: {},
     margin: {
       margin: theme.spacing(1),
     },
@@ -525,12 +528,29 @@ export default () => {
       marginTop: theme.spacing(3),
     },
     textField: {
-      width: '25ch',
+      width: "25ch",
+
+      // input label when focused
+      "& label.Mui-focused": {
+        color: focusedColor,
+      },
+      // focused color for input with variant='standard'
+      "& .MuiInput-underline:after": {
+        borderBottomColor: focusedColor,
+      },
+      // focused color for input with variant='filled'
+      "& .MuiFilledInput-underline:after": {
+        borderBottomColor: focusedColor,
+      },
+      // focused color for input with variant='outlined'
+      "& .MuiOutlinedInput-root": {
+        "&.Mui-focused fieldset": {
+          borderColor: focusedColor,
+        },
+      },
     },
   }));
 
   const classes = useStyles();
-  return (
-      <App classes={classes} />
-  )
-}
+  return <App classes={classes} />;
+};
