@@ -162,7 +162,6 @@ class App extends React.Component {
             10 ** (await contract.methods?.decimals().call()),
           address: address,
         };
-        this.showToast(`Raw token info: ${JSON.stringify(tokenInfo)}`, 'info');
 
         return tokenInfo;
       } catch (e) {
@@ -332,11 +331,13 @@ class App extends React.Component {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
-                              onClick={this.storeBEP20TokenInfo.bind(
-                                this,
-                                this.state.fromTokenAddress,
-                                'fromTokenInfo'
-                              )}
+                              onClick={() => {
+                                this.getBEP20TokenInfo(this.state.fromTokenAddress).then(res => {
+                                  this.showToast(
+                                    `Raw Token Information: ${JSON.stringify(res)}`
+                                  )
+                                })
+                              }}
                               edge="end"
                             >
                               <Info />
@@ -406,11 +407,13 @@ class App extends React.Component {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
-                              onClick={this.storeBEP20TokenInfo.bind(
-                                this,
-                                this.state.toTokenAddress,
-                                'toTokenInfo'
-                              )}
+                              onClick={() => {
+                                this.getBEP20TokenInfo(this.state.toTokenAddress).then(res => {
+                                  this.showToast(
+                                    `Raw Token Information: ${JSON.stringify(res)}`
+                                  )
+                                })
+                              }}
                               edge="end"
                             >
                               <Info />
