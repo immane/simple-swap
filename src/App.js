@@ -12,12 +12,9 @@ import ThumbUpIcon from '@material-ui/icons/ThumbUp';
 
 import clsx from "clsx";
 import { makeStyles } from "@material-ui/core/styles";
-import useMediaQuery from "@material-ui/core/useMediaQuery";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
-import CssBaseline from "@material-ui/core/CssBaseline";
 
 import Button from "@material-ui/core/Button";
-import Icon from "@material-ui/core/Icon";
 
 import Web3 from "web3";
 import Contract from "web3-eth-contract";
@@ -27,10 +24,12 @@ import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
 import logo from "./logo.svg";
 import "./App.css";
 
-
+// Constrant
 const DEFAULT_WETH = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd';
 const DEFAULT_SWAP_ROUTER = '0xD99D1c33F9fC3444f8101754aBC46c52416550D1';
 
+
+// Main
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -39,6 +38,8 @@ class App extends React.Component {
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
       toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      fromTokenInfo: {},
+      toTokenInfo: {},
       fromBalance: 0,
       fromAmount: 0,
       toAmount: 0,
@@ -51,25 +52,8 @@ class App extends React.Component {
     };
   }
 
-  classes = makeStyles((theme) => ({
-    root: {
-      display: "flex",
-      flexWrap: "wrap",
-    },
-    margin: {
-      margin: theme.spacing(1),
-    },
-    withoutLabel: {
-      marginTop: theme.spacing(3),
-    },
-    textField: {
-      width: "25ch",
-    },
-  }));
-
   NumberFormatCustom = (props) => {
     const { inputRef, onChange, ...other } = props;
-
     return (
       <NumberFormat
         {...other}
@@ -84,14 +68,14 @@ class App extends React.Component {
         }}
         thousandSeparator
         isNumericString
-        prefix="$ "
+        prefix=""
       />
     );
   };
 
   valueChange = (event) => {
     this.setState({
-      [event.target.name]: event.target.value,
+      [event.target.name]: event.target.value.trim(),
     });
   };
 
@@ -155,7 +139,7 @@ class App extends React.Component {
           address: address,
         };
         console.log("Token info:", tokenInfo);
-        alert(JSON.stringify(tokenInfo));
+        // alert(JSON.stringify(tokenInfo));
 
         return tokenInfo;
       } catch (e) {
@@ -163,6 +147,15 @@ class App extends React.Component {
       }
     } else return false;
   };
+
+  storeBEP20TokenInfo = async (address, variable) => {
+    const info = await this.getBEP20TokenInfo(address)
+    if(info) {
+      this.setState({ [variable]: info })
+      return info
+    }
+    return false
+  }
 
   makeBEP20RawTransaction = async (tokenAddress, to, amount) => {
     const web3 = new Web3(window.ethereum);
@@ -238,9 +231,7 @@ class App extends React.Component {
         .swapExactTokensForTokens(
             fromAmount * Math.pow(10, fromDecimals),
             toAmountMin * Math.pow(10, toDecimals),
-            DEFAULT_WETH === toAddress 
-                ? [fromAddress, toAddress]
-                : [fromAddress, DEFAULT_WETH, toAddress],
+            [...new Set([fromAddress, DEFAULT_WETH, toAddress])],
             this.state.walletAddress,
             Date.now() + 1000 * 60 * 3
         )
@@ -266,6 +257,7 @@ class App extends React.Component {
         type: "dark",
       },
     });
+    const classes = this.props.classes;
 
     return (
       <ThemeProvider theme={darkTheme}>
@@ -294,8 +286,8 @@ class App extends React.Component {
                       label="From Contract Address"
                       id="outlined-start-adornment"
                       className={clsx(
-                        this.classes.margin,
-                        this.classes.textField
+                        classes.margin,
+                        classes.textField
                       )}
                       InputProps={{
                         startAdornment: (
@@ -304,9 +296,10 @@ class App extends React.Component {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
-                              onClick={this.getBEP20TokenInfo.bind(
+                              onClick={this.storeBEP20TokenInfo.bind(
                                 this,
-                                this.state.fromTokenAddress
+                                this.state.fromTokenAddress,
+                                'fromTokenInfo'
                               )}
                               edge="end"
                             >
@@ -324,27 +317,28 @@ class App extends React.Component {
                     <br />
 
                     <TextField
-                      label={`From Amount (Balance: ${this.state.fromBalance})`}
+                      label={`From Amount (Balance: ${this.state.fromTokenInfo?.balance ?? 0})`}
                       id="outlined-start-adornment"
                       className={clsx(
-                        this.classes.margin,
-                        this.classes.textField
+                        classes.margin,
+                        classes.textField
                       )}
                       InputProps={{
                         startAdornment: (
-                          <InputAdornment position="start"></InputAdornment>
+                          <InputAdornment position="start">
+                            { this.state.fromTokenInfo?.symbol }
+                          </InputAdornment>
                         ),
                         endAdornment: (
                           <InputAdornment position="end">
-                            <IconButton
-                              onClick={this.getBEP20TokenInfo.bind(
-                                this,
-                                this.state.fromTokenAddress
-                              )}
-                              edge="end"
-                            >
-                              <Info />
-                            </IconButton>
+                            <span
+                            onClick={() => {
+                              this.setState({
+                                fromAmount: this.state.fromTokenInfo?.balance
+                              })
+                            }}
+                            style={{ cursor: 'pointer' }}
+                            >Max</span>
                           </InputAdornment>
                         ),
                         inputComponent: this.NumberFormatCustom,
@@ -353,6 +347,11 @@ class App extends React.Component {
                       name="fromAmount"
                       value={this.state.fromAmount}
                       onChange={this.valueChange}
+                      onFocus={this.storeBEP20TokenInfo.bind(
+                        this,
+                        this.state.fromTokenAddress,
+                        'fromTokenInfo'
+                      )}
                     />
                     <br />
                     <br />
@@ -361,8 +360,8 @@ class App extends React.Component {
                       label="To Contract Address"
                       id="outlined-start-adornment"
                       className={clsx(
-                        this.classes.margin,
-                        this.classes.textField
+                        classes.margin,
+                        classes.textField
                       )}
                       InputProps={{
                         startAdornment: (
@@ -371,9 +370,10 @@ class App extends React.Component {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
-                              onClick={this.getBEP20TokenInfo.bind(
+                              onClick={this.storeBEP20TokenInfo.bind(
                                 this,
-                                this.state.toTokenAddress
+                                this.state.toTokenAddress,
+                                'toTokenInfo'
                               )}
                               edge="end"
                             >
@@ -391,21 +391,16 @@ class App extends React.Component {
                     <br />
 
                     <TextField
-                      label={`To Amount`}
+                      label={`Minimum To Amount`}
                       id="outlined-start-adornment"
                       className={clsx(
-                        this.classes.margin,
-                        this.classes.textField
+                        classes.margin,
+                        classes.textField
                       )}
                       InputProps={{
                         startAdornment: (
-                          <InputAdornment position="start"></InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton edge="end">
-                              <Info />
-                            </IconButton>
+                          <InputAdornment position="start">
+                            { this.state.toTokenInfo?.symbol }
                           </InputAdornment>
                         ),
                         inputComponent: this.NumberFormatCustom,
@@ -414,6 +409,11 @@ class App extends React.Component {
                       name="toAmount"
                       value={this.state.toAmount}
                       onChange={this.valueChange}
+                      onFocus={this.storeBEP20TokenInfo.bind(
+                        this,
+                        this.state.toTokenAddress,
+                        'toTokenInfo'
+                      )}
                     />
                     <br />
                     <br />
@@ -473,4 +473,25 @@ class App extends React.Component {
   }
 }
 
-export default App;
+export default () => {
+  const useStyles = makeStyles((theme) => ({
+    root: {
+      display: 'flex',
+      flexWrap: 'wrap',
+    },
+    margin: {
+      margin: theme.spacing(1),
+    },
+    withoutLabel: {
+      marginTop: theme.spacing(3),
+    },
+    textField: {
+      width: '25ch',
+    },
+  }));
+
+  const classes = useStyles();
+  return (
+      <App classes={classes} />
+  )
+}
