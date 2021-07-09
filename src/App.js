@@ -41,7 +41,7 @@ class App extends React.Component {
     this.state = {
       openAlert: false,
       alertType: "info",
-      alertMessage: "Unknown error",
+      alertMessage: "Information",
 
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
@@ -101,6 +101,15 @@ class App extends React.Component {
     this.setState({
       [event.target.name]: event.target.value.trim(),
     });
+  };
+  handleBlur = (event) => {
+    this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
+    this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
+  };
+  handleFocus = (event) => {
+    this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
+    this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
+    event.target.select();
   };
 
   getInfo = () => {
@@ -185,6 +194,8 @@ class App extends React.Component {
     const nonce = await web3.eth.getTransactionCount(wallet);
 
     try {
+      /*  
+      // Some ethereum browser cannot recognize
       const rawDataInstance = Object.prototype.toString.call(rawData);
       let data = rawData;
       if ("[object AsyncFunction]" === rawDataInstance) {
@@ -192,6 +203,8 @@ class App extends React.Component {
       } else if ("[object Function]" === rawDataInstance) {
         data = rawData();
       }
+      */
+      const data = await rawData();
 
       const rawTransaction = {
         from: wallet,
@@ -335,6 +348,8 @@ class App extends React.Component {
                       name="fromTokenAddress"
                       value={this.state.fromTokenAddress}
                       onChange={this.valueChange}
+                      onFocus={this.handleFocus}
+                      onBlur={this.handleBlur}
                     />
                     <br />
                     <br />
@@ -370,11 +385,7 @@ class App extends React.Component {
                       name="fromAmount"
                       value={this.state.fromAmount}
                       onChange={this.valueChange}
-                      onFocus={this.storeTokenInfo.bind(
-                        this,
-                        this.state.fromTokenAddress,
-                        "fromTokenInfo"
-                      )}
+                      onFocus={this.handleFocus}
                     />
                     <br />
                     <AutorenewIcon
@@ -434,6 +445,8 @@ class App extends React.Component {
                       name="toTokenAddress"
                       value={this.state.toTokenAddress}
                       onChange={this.valueChange}
+                      onFocus={this.handleFocus}
+                      onBlur={this.handleBlur}
                     />
                     <br />
                     <br />
@@ -453,11 +466,7 @@ class App extends React.Component {
                       name="toAmount"
                       value={this.state.toAmount}
                       onChange={this.valueChange}
-                      onFocus={this.storeTokenInfo.bind(
-                        this,
-                        this.state.toTokenAddress,
-                        "toTokenInfo"
-                      )}
+                      onFocus={this.handleFocus}
                     />
                     <br />
                     <br />
