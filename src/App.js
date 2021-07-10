@@ -8,7 +8,6 @@ import TextField from "@material-ui/core/TextField";
 import IconButton from "@material-ui/core/IconButton";
 import SwapVertIcon from "@material-ui/icons/SwapVert";
 import Info from "@material-ui/icons/Info";
-import ThumbUpIcon from "@material-ui/icons/ThumbUp";
 import PeopleIcon from "@material-ui/icons/People";
 import AutorenewIcon from "@material-ui/icons/Autorenew";
 
@@ -18,20 +17,51 @@ import { createTheme, ThemeProvider } from "@material-ui/core/styles";
 
 import Button from "@material-ui/core/Button";
 import Snackbar from "@material-ui/core/Snackbar";
-import MuiAlert, { AlertProps } from "@material-ui/lab/Alert";
-import { Theme } from "@material-ui/core/styles";
+import MuiAlert from "@material-ui/lab/Alert";
 
 import Web3 from "web3";
-import Contract from "web3-eth-contract";
 import bep20TokenAbi from "./abi/BEP20Token.abi.json";
 import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
 
 import logo from "./logo.svg";
 import "./App.css";
 
-// Constrant
-const DEFAULT_WETH = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";
-const DEFAULT_SWAP_ROUTER = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
+// Constant
+const NETWORKS = {
+  0x1: {
+    name: "Ethereum Mainnet",
+    chain: "ETH",
+    weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    swap: {
+      default: {
+        name: "Uniswap V2: Router 2",
+        address: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      },
+    },
+  },
+  0x38: {
+    name: "BSC Mainnet",
+    chain: "BNB",
+    weth: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    swap: {
+      default: {
+        name: "PancakeSwap: Router v2",
+        address: "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+      },
+    },
+  },
+  0x61: {
+    name: "BSC Mainnet",
+    chain: "BNB",
+    weth: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+    swap: {
+      default: {
+        name: "Pancakeswap Testnet: Router",
+        address: "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+      },
+    },
+  },
+};
 
 // Main
 class App extends React.Component {
@@ -43,6 +73,7 @@ class App extends React.Component {
       alertType: "info",
       alertMessage: "Information",
 
+      chainId: 0,
       walletAddress: null,
       fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
       toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
@@ -61,10 +92,12 @@ class App extends React.Component {
   }
 
   showToast = (message, type = "info") => {
-    this.setState({
-      alertMessage: message,
-      alertType: type,
-      openAlert: true,
+    return new Promise(() => {
+      this.setState({
+        alertMessage: message,
+        alertType: type,
+        openAlert: true,
+      });
     });
   };
 
@@ -112,43 +145,55 @@ class App extends React.Component {
     event.target.select();
   };
 
-  getInfo = () => {
-    fetch(
-      `https://api.pancakeswap.info/api/v2/tokens/${this.state.fromTokenAddress}`
-    ).then((res) =>
-      res.json().then((data) => {
-        console.log(data);
-      })
-    );
-  };
+  // ethereum
 
   connectWalletRequest = async () => {
     if (window.ethereum) {
-      const ethereum = window.ethereum;
-      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-      const wallet = accounts[0];
-
-      if (wallet) {
-        this.setState({
-          walletAddress: wallet,
+      try {
+        const ethereum = window.ethereum;
+        const accounts = await ethereum.request({
+          method: "eth_requestAccounts",
         });
-        return wallet;
+        const wallet = accounts[0];
+
+        const chainId = await ethereum.request({ method: "eth_chainId" });
+        this.setState({ chainId: parseInt(chainId, 16) });
+        console.log("Connected chain id", chainId);
+
+        ethereum.on("chainChanged", (_chainId) => {
+          this.showToast(
+            "Wallet chain has changed, auto refreshing...",
+            "warning"
+          );
+          setTimeout(() => window.location.reload(), 5e3);
+        });
+
+        if (wallet) {
+          this.setState({
+            walletAddress: wallet,
+          });
+          return wallet;
+        }
+      } catch (e) {
+        this.showToast(e.message, "error");
       }
-    }
-    else {
-        this.showToast('No ethereum environment found', 'error');
+    } else {
+      this.showToast("No ethereum environment found", "error");
     }
   };
 
   openContract = async (address, abi = bep20TokenAbi) => {
+    const web3 = new Web3(window.ethereum);
     const wallet = await this.connectWalletRequest();
     if (wallet) {
-      Contract.setProvider("https://data-seed-prebsc-1-s1.binance.org:8545/");
+      // Contract.setProvider("https://data-seed-prebsc-1-s1.binance.org:8545/");
       try {
-        return new Contract(abi, address, {
+        const contract = new web3.eth.Contract(abi, address, {
           from: wallet,
-          gasPrice: 2e10,
+          // gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
         });
+        console.log(`Contract [${address}]`, contract);
+        return contract;
       } catch (e) {
         this.showToast(e.message, "error");
       }
@@ -190,12 +235,12 @@ class App extends React.Component {
   };
 
   sendTransaction = async (contractAddress, rawData) => {
-    const web3 = new Web3(window.ethereum);
+    const ethereum = window.ethereum;
+    const web3 = new Web3(ethereum);
     const wallet = await this.connectWalletRequest();
     const nonce = await web3.eth.getTransactionCount(wallet);
 
-    try {
-      /*  
+    /*  
       // Some ethereum browser cannot recognize
       const rawDataInstance = Object.prototype.toString.call(rawData);
       let data = rawData;
@@ -204,27 +249,33 @@ class App extends React.Component {
       } else if ("[object Function]" === rawDataInstance) {
         data = rawData();
       }
-      */
-      const data = await rawData();
+    */
+    const data = await rawData();
 
-      const rawTransaction = {
+    const params = [
+      {
         from: wallet,
-        nonce: nonce,
-        // gasPrice: await web3.eth.getGasPrice(),
-        gasLimit: 200000,
+        nonce: web3.utils.toHex(nonce),
+        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
+        gasLimit: web3.utils.toHex(200000),
         to: contractAddress,
         value: "0x0",
         data: data,
-      };
-      console.log("Raw transaction: ", rawTransaction);
+      },
+    ];
+    console.log("Raw transaction: ", params);
 
-      const result = await web3.eth.sendTransaction(rawTransaction);
-      this.showToast("Send transaction success", "success");
-      return result;
-    } catch (e) {
-      console.log(e);
-      this.showToast(e.message, "error");
-    }
+    ethereum
+      .request({
+        method: "eth_sendTransaction",
+        params,
+      })
+      .then(() => {
+        this.showToast("Send transaction success", "success");
+      })
+      .catch((err) => {
+        this.showToast(err.message, "error");
+      });
   };
 
   transfer = async (tokenAddress, to, amount) => {
@@ -232,7 +283,7 @@ class App extends React.Component {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .transfer(to, String(amount * Math.pow(10, decimals)))
+        .transfer(to, Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`)))
         .encodeABI();
     });
   };
@@ -242,27 +293,31 @@ class App extends React.Component {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .approve(spender, String(amount * Math.pow(10, decimals)))
+        .approve(spender, Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`)))
         .encodeABI();
     });
   };
 
   swap = async (fromAddress, toAddress, fromAmount, toAmountMin = 0) => {
-    return this.sendTransaction(DEFAULT_SWAP_ROUTER, async () => {
+    const swapRouter = NETWORKS[this.state.chainId].swap.default.address;
+    return this.sendTransaction(swapRouter, async () => {
       const fromToken = await this.openContract(fromAddress);
       const toToken = await this.openContract(toAddress);
-      const contract = await this.openContract(
-        DEFAULT_SWAP_ROUTER,
-        iUniswapV2Router02
-      );
+      const contract = await this.openContract(swapRouter, iUniswapV2Router02);
       const fromDecimals = await fromToken.methods.decimals().call();
       const toDecimals = await toToken.methods.decimals().call();
 
       return contract.methods
         .swapExactTokensForTokens(
-          String(fromAmount * Math.pow(10, fromDecimals)),
-          String(toAmountMin * Math.pow(10, toDecimals)),
-          [...new Set([fromAddress, DEFAULT_WETH, toAddress])],
+            Web3.utils.toBN(fromAmount).mul(Web3.utils.toBN(`1e${fromDecimals}`)),
+            Web3.utils.toBN(toAmountMin).mul(Web3.utils.toBN(`1e${toDecimals}`)),
+          [
+            ...new Set([
+              fromAddress,
+              NETWORKS[this.state.chainId].weth,
+              toAddress,
+            ]),
+          ],
           this.state.walletAddress,
           Date.now() + 1000 * 60 * 3
         )
@@ -480,12 +535,20 @@ class App extends React.Component {
                         },
                       }))}
                       endIcon={<PeopleIcon />}
-                      onClick={this.approve.bind(
-                        this,
-                        this.state.fromTokenAddress,
-                        DEFAULT_SWAP_ROUTER,
-                        this.state.fromAmount
-                      )}
+                      onClick={() => {
+                        if (!this.state.chainId) {
+                          this.showToast(
+                            "Please connect to wallet first",
+                            "warning"
+                          );
+                        } else {
+                          this.approve(
+                            this.state.fromTokenAddress,
+                            NETWORKS[this.state.chainId].swap.default.address,
+                            this.state.fromAmount
+                          );
+                        }
+                      }}
                     >
                       Approve
                     </Button>
