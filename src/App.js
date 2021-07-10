@@ -124,10 +124,10 @@ class App extends React.Component {
 
   connectWalletRequest = async () => {
     if (window.ethereum) {
-      await window.ethereum.send("eth_requestAccounts");
-      const web3 = new Web3(window.ethereum);
+      const ethereum = window.ethereum;
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      const wallet = accounts[0];
 
-      const wallet = (await web3.eth.getAccounts())[0];
       if (wallet) {
         this.setState({
           walletAddress: wallet,
@@ -135,8 +135,9 @@ class App extends React.Component {
         return wallet;
       }
     }
-
-    return false;
+    else {
+        this.showToast('No ethereum environment found', 'error');
+    }
   };
 
   openContract = async (address, abi = bep20TokenAbi) => {
