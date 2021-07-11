@@ -1,24 +1,39 @@
+// Base
 import React from "react";
 import { BrowserRouter as Router, Switch, Route } from "react-router-dom";
 import PropTypes from "prop-types";
 import NumberFormat from "react-number-format";
 
+// UI
+import clsx from "clsx";
+import { makeStyles } from "@material-ui/core/styles";
+import { createTheme, ThemeProvider } from "@material-ui/core/styles";
+
 import InputAdornment from "@material-ui/core/InputAdornment";
 import TextField from "@material-ui/core/TextField";
+
 import IconButton from "@material-ui/core/IconButton";
 import SwapVertIcon from "@material-ui/icons/SwapVert";
 import Info from "@material-ui/icons/Info";
 import PeopleIcon from "@material-ui/icons/People";
 import AutorenewIcon from "@material-ui/icons/Autorenew";
 
-import clsx from "clsx";
-import { makeStyles } from "@material-ui/core/styles";
-import { createTheme, ThemeProvider } from "@material-ui/core/styles";
-
+import AppBar from "@material-ui/core/AppBar";
+import Toolbar from "@material-ui/core/Toolbar";
+import Typography from "@material-ui/core/Typography";
 import Button from "@material-ui/core/Button";
+import MenuIcon from "@material-ui/icons/Menu";
+
 import Snackbar from "@material-ui/core/Snackbar";
 import MuiAlert from "@material-ui/lab/Alert";
 
+import Dialog from "@material-ui/core/Dialog";
+import DialogActions from "@material-ui/core/DialogActions";
+import DialogContent from "@material-ui/core/DialogContent";
+import DialogContentText from "@material-ui/core/DialogContentText";
+import DialogTitle from "@material-ui/core/DialogTitle";
+
+// Ethereum
 import Web3 from "web3";
 import bep20TokenAbi from "./abi/BEP20Token.abi.json";
 import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
@@ -69,14 +84,23 @@ class App extends React.Component {
     super(props);
 
     this.state = {
+      // Alert
       openAlert: false,
       alertType: "info",
       alertMessage: "Information",
 
+      // Dialog
+      openDialog: false,
+      dialogTitle: "Dialog",
+      dialogContent: "Content",
+
+      // Ethereum
       chainId: 0,
       walletAddress: null,
-      fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
-      toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      // fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
+      // toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      fromTokenAddress: null,
+      toTokenAddress: null,
       fromTokenInfo: {},
       toTokenInfo: {},
       fromBalance: 0,
@@ -90,6 +114,8 @@ class App extends React.Component {
       onChange: PropTypes.func.isRequired,
     };
   }
+
+  // Alert
 
   showToast = (message, type = "info") => {
     return new Promise(() => {
@@ -108,6 +134,24 @@ class App extends React.Component {
 
     this.setState({ openAlert: false });
   };
+
+  // Dialog
+
+  showDialog = (title, content) => {
+    return new Promise(() => {
+      this.setState({
+        dialogTitle: title,
+        dialogContent: content,
+        openDialog: true,
+      });
+    });
+  };
+
+  handleDialogClose = () => {
+    this.setState({ openDialog: false });
+  };
+
+  // Form
 
   NumberFormatCustom = (props) => {
     const { inputRef, onChange, ...other } = props;
@@ -135,17 +179,19 @@ class App extends React.Component {
       [event.target.name]: event.target.value.trim(),
     });
   };
+
   handleBlur = (event) => {
     this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
     this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
   };
+
   handleFocus = (event) => {
     this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
     this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
     event.target.select();
   };
 
-  // ethereum
+  // Ethereum
 
   connectWalletRequest = async () => {
     if (window.ethereum) {
@@ -283,7 +329,10 @@ class App extends React.Component {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .transfer(to, Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`)))
+        .transfer(
+          to,
+          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
+        )
         .encodeABI();
     });
   };
@@ -293,7 +342,10 @@ class App extends React.Component {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .approve(spender, Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`)))
+        .approve(
+          spender,
+          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
+        )
         .encodeABI();
     });
   };
@@ -309,8 +361,8 @@ class App extends React.Component {
 
       return contract.methods
         .swapExactTokensForTokens(
-            Web3.utils.toBN(fromAmount).mul(Web3.utils.toBN(`1e${fromDecimals}`)),
-            Web3.utils.toBN(toAmountMin).mul(Web3.utils.toBN(`1e${toDecimals}`)),
+          Web3.utils.toBN(fromAmount).mul(Web3.utils.toBN(`1e${fromDecimals}`)),
+          Web3.utils.toBN(toAmountMin).mul(Web3.utils.toBN(`1e${toDecimals}`)),
           [
             ...new Set([
               fromAddress,
@@ -335,6 +387,55 @@ class App extends React.Component {
 
     return (
       <ThemeProvider theme={darkTheme}>
+        <AppBar position="fixed" className={classes.root}>
+          <Toolbar>
+            <IconButton
+              edge="start"
+              className={classes.menuButton}
+              color="inherit"
+              aria-label="menu"
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography variant="h6" className={classes.title}>
+              Simple Swap
+            </Typography>
+            <Button color="inherit" onClick={this.connectWalletRequest}>
+              {this.state.walletAddress
+                ? `${this.state.walletAddress.slice(
+                    0,
+                    6
+                  )}...${this.state.walletAddress.slice(-4)}`
+                : "Connect"}
+            </Button>
+          </Toolbar>
+        </AppBar>
+
+        <Dialog
+          open={this.state.openDialog}
+          onClose={this.handleDialogClose}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title">
+            {this.state.dialogTitle}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText id="alert-dialog-description">
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: this.state.dialogContent,
+                }}
+              ></div>
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={this.handleDialogClose} color="primary" autoFocus>
+              OK
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         <Router>
           <Switch>
             <Route path="/">
@@ -356,18 +457,6 @@ class App extends React.Component {
 
                 <header className="App-header">
                   <img src={logo} className="App-logo" alt="logo" />
-                  <p
-                    className="App-link"
-                    rel="noopener noreferrer"
-                    onClick={this.connectWalletRequest}
-                  >
-                    {this.state.walletAddress
-                      ? `Connected to ${this.state.walletAddress.slice(
-                          0,
-                          6
-                        )}...${this.state.walletAddress.slice(-4)}`
-                      : "Connect to wallet"}
-                  </p>
                   <br />
 
                   <form>
@@ -386,11 +475,12 @@ class App extends React.Component {
                                 this.getTokenInfo(
                                   this.state.fromTokenAddress
                                 ).then((res) => {
-                                  this.showToast(
-                                    `Raw Token Information: ${JSON.stringify(
-                                      res
-                                    )}`
-                                  );
+                                  if (res) {
+                                    this.showDialog(
+                                      "Token Information",
+                                      `Symbol: ${res?.symbol}<br/>Name: ${res?.name}<br/>Decimals: ${res?.decimals}<br/>Total Supply: ${res?.totalSupply}<br/>Your Balance: ${res?.balance}`
+                                    );
+                                  }
                                 });
                               }}
                               edge="end"
@@ -483,11 +573,12 @@ class App extends React.Component {
                                 this.getTokenInfo(
                                   this.state.toTokenAddress
                                 ).then((res) => {
-                                  this.showToast(
-                                    `Raw Token Information: ${JSON.stringify(
-                                      res
-                                    )}`
-                                  );
+                                  if (res) {
+                                    this.showDialog(
+                                      "Token Information",
+                                      `Symbol: ${res?.symbol}<br/>Name: ${res?.name}<br/>Decimals: ${res?.decimals}<br/>Total Supply: ${res?.totalSupply}<br/>Your Balance: ${res?.balance}`
+                                    );
+                                  }
                                 });
                               }}
                               edge="end"
@@ -587,11 +678,19 @@ class App extends React.Component {
 }
 
 export default () => {
-  const focusedColor = "rgb(97, 218, 251)";
+  const baseColor = "rgb(97, 218, 251)";
   const useStyles = makeStyles((theme) => ({
     root: {
       display: "flex",
       flexWrap: "wrap",
+      backgroundColor: baseColor,
+      color: "black",
+    },
+    menuButton: {
+      marginRight: theme.spacing(2),
+    },
+    title: {
+      flexGrow: 1,
     },
     focused: {},
     margin: {
@@ -605,20 +704,20 @@ export default () => {
 
       // input label when focused
       "& label.Mui-focused": {
-        color: focusedColor,
+        color: baseColor,
       },
       // focused color for input with variant='standard'
       "& .MuiInput-underline:after": {
-        borderBottomColor: focusedColor,
+        borderBottomColor: baseColor,
       },
       // focused color for input with variant='filled'
       "& .MuiFilledInput-underline:after": {
-        borderBottomColor: focusedColor,
+        borderBottomColor: baseColor,
       },
       // focused color for input with variant='outlined'
       "& .MuiOutlinedInput-root": {
         "&.Mui-focused fieldset": {
-          borderColor: focusedColor,
+          borderColor: baseColor,
         },
       },
     },
