@@ -33,6 +33,9 @@ import DialogContent from "@material-ui/core/DialogContent";
 import DialogContentText from "@material-ui/core/DialogContentText";
 import DialogTitle from "@material-ui/core/DialogTitle";
 
+// Component
+import MenuDrawer from "./components/MenuDrawer";
+
 // Ethereum
 import Web3 from "web3";
 import bep20TokenAbi from "./abi/BEP20Token.abi.json";
@@ -94,13 +97,17 @@ class App extends React.Component {
       dialogTitle: "Dialog",
       dialogContent: "Content",
 
+      // Drawer
+      openDrawer: false,
+      refreshDrawerKey: 0,
+
       // Ethereum
       chainId: 0,
       walletAddress: null,
-      fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
-      toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
-      // fromTokenAddress: '0x0',
-      // toTokenAddress: '0x0',
+      // fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
+      // toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      fromTokenAddress: "0x0",
+      toTokenAddress: "0x0",
       fromTokenInfo: {},
       toTokenInfo: {},
       fromBalance: 0,
@@ -151,6 +158,14 @@ class App extends React.Component {
     this.setState({ openDialog: false });
   };
 
+  // Drawer
+  openDrawer = () => {
+    this.setState({
+      openDrawer: true,
+      refreshDrawerKey: this.state.refreshDrawerKey + 1,
+    });
+  };
+
   // Form
 
   NumberFormatCustom = (props) => {
@@ -189,6 +204,20 @@ class App extends React.Component {
     this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
     this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
     event.target.select();
+  };
+
+  storeTokenInfo = async (address, variable) => {
+    const info = await this.getTokenInfo(address);
+    if (info) {
+      this.setState({ [variable]: info });
+      return info;
+    }
+    return false;
+  };
+
+  refreshTokenInfo = () => {
+    this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
+    this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
   };
 
   // Ethereum
@@ -232,7 +261,6 @@ class App extends React.Component {
     const web3 = new Web3(window.ethereum);
     const wallet = await this.connectWalletRequest();
     if (wallet) {
-      // Contract.setProvider("https://data-seed-prebsc-1-s1.binance.org:8545/");
       try {
         const contract = new web3.eth.Contract(abi, address, {
           from: wallet,
@@ -269,15 +297,6 @@ class App extends React.Component {
         this.showToast(e.message, "error");
       }
     } else return false;
-  };
-
-  storeTokenInfo = async (address, variable) => {
-    const info = await this.getTokenInfo(address);
-    if (info) {
-      this.setState({ [variable]: info });
-      return info;
-    }
-    return false;
   };
 
   sendTransaction = async (contractAddress, rawData) => {
@@ -317,6 +336,7 @@ class App extends React.Component {
         params,
       })
       .then(() => {
+        this.refreshTokenInfo();
         this.showToast("Send transaction success", "success");
       })
       .catch((err) => {
@@ -394,6 +414,7 @@ class App extends React.Component {
               className={classes.menuButton}
               color="inherit"
               aria-label="menu"
+              onClick={this.openDrawer}
             >
               <MenuIcon />
             </IconButton>
@@ -410,6 +431,11 @@ class App extends React.Component {
             </Button>
           </Toolbar>
         </AppBar>
+
+        <MenuDrawer
+          open={this.state.openDrawer}
+          key={this.state.refreshDrawerKey}
+        />
 
         <Dialog
           open={this.state.openDialog}
@@ -436,25 +462,25 @@ class App extends React.Component {
           </DialogActions>
         </Dialog>
 
+        <Snackbar
+          open={this.state.openAlert}
+          autoHideDuration={6000}
+          onClose={this.handleAlertClose}
+        >
+          <MuiAlert
+            elevation={6}
+            variant="filled"
+            severity={this.state.alertType}
+            onClose={this.handleAlertClose}
+          >
+            {this.state.alertMessage}
+          </MuiAlert>
+        </Snackbar>
+
         <Router>
           <Switch>
             <Route path="/">
               <div className="App">
-                <Snackbar
-                  open={this.state.openAlert}
-                  autoHideDuration={6000}
-                  onClose={this.handleAlertClose}
-                >
-                  <MuiAlert
-                    elevation={6}
-                    variant="filled"
-                    severity={this.state.alertType}
-                    onClose={this.handleAlertClose}
-                  >
-                    {this.state.alertMessage}
-                  </MuiAlert>
-                </Snackbar>
-
                 <header className="App-header">
                   <img src={logo} className="App-logo" alt="logo" />
                   <br />
@@ -685,6 +711,10 @@ export default () => {
       flexWrap: "wrap",
       backgroundColor: baseColor,
       color: "black",
+
+      "& div.MuiToolbar-root": {
+        minHeight: "40px",
+      },
     },
     menuButton: {
       marginRight: theme.spacing(2),
