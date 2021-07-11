@@ -27,59 +27,19 @@ import MenuIcon from "@material-ui/icons/Menu";
 import Snackbar from "@material-ui/core/Snackbar";
 import MuiAlert from "@material-ui/lab/Alert";
 
-import Dialog from "@material-ui/core/Dialog";
-import DialogActions from "@material-ui/core/DialogActions";
-import DialogContent from "@material-ui/core/DialogContent";
-import DialogContentText from "@material-ui/core/DialogContentText";
-import DialogTitle from "@material-ui/core/DialogTitle";
-
 // Component
 import MenuDrawer from "./components/MenuDrawer";
+import MessageDialog from "./components/MessageDialog";
 
 // Ethereum
 import Web3 from "web3";
 import bep20TokenAbi from "./abi/BEP20Token.abi.json";
 import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
+import EthereumNetworks from "./constant/EthereumNetworks.json";
 
 import logo from "./logo.svg";
 import "./App.css";
 
-// Constant
-const NETWORKS = {
-  0x1: {
-    name: "Ethereum Mainnet",
-    chain: "ETH",
-    weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    swap: {
-      default: {
-        name: "Uniswap V2: Router 2",
-        address: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-      },
-    },
-  },
-  0x38: {
-    name: "BSC Mainnet",
-    chain: "BNB",
-    weth: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-    swap: {
-      default: {
-        name: "PancakeSwap: Router v2",
-        address: "0x10ED43C718714eb63d5aA57B78B54704E256024E",
-      },
-    },
-  },
-  0x61: {
-    name: "BSC Mainnet",
-    chain: "BNB",
-    weth: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
-    swap: {
-      default: {
-        name: "Pancakeswap Testnet: Router",
-        address: "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
-      },
-    },
-  },
-};
 
 // Main
 class App extends React.Component {
@@ -96,6 +56,7 @@ class App extends React.Component {
       openDialog: false,
       dialogTitle: "Dialog",
       dialogContent: "Content",
+      refreshDialogKey: 0,
 
       // Drawer
       openDrawer: false,
@@ -150,12 +111,9 @@ class App extends React.Component {
         dialogTitle: title,
         dialogContent: content,
         openDialog: true,
+        refreshDialogKey: this.state.refreshDialogKey + 1,
       });
     });
-  };
-
-  handleDialogClose = () => {
-    this.setState({ openDialog: false });
   };
 
   // Drawer
@@ -371,7 +329,7 @@ class App extends React.Component {
   };
 
   swap = async (fromAddress, toAddress, fromAmount, toAmountMin = 0) => {
-    const swapRouter = NETWORKS[this.state.chainId].swap.default.address;
+    const swapRouter = EthereumNetworks[this.state.chainId].swap.default.address;
     return this.sendTransaction(swapRouter, async () => {
       const fromToken = await this.openContract(fromAddress);
       const toToken = await this.openContract(toAddress);
@@ -386,7 +344,7 @@ class App extends React.Component {
           [
             ...new Set([
               fromAddress,
-              NETWORKS[this.state.chainId].weth,
+              EthereumNetworks[this.state.chainId].weth,
               toAddress,
             ]),
           ],
@@ -434,33 +392,15 @@ class App extends React.Component {
 
         <MenuDrawer
           open={this.state.openDrawer}
-          key={this.state.refreshDrawerKey}
+          key={"MenuDrawer" + this.state.refreshDrawerKey}
         />
 
-        <Dialog
+        <MessageDialog
           open={this.state.openDialog}
-          onClose={this.handleDialogClose}
-          aria-labelledby="alert-dialog-title"
-          aria-describedby="alert-dialog-description"
-        >
-          <DialogTitle id="alert-dialog-title">
-            {this.state.dialogTitle}
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText id="alert-dialog-description">
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: this.state.dialogContent,
-                }}
-              ></div>
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={this.handleDialogClose} color="primary" autoFocus>
-              OK
-            </Button>
-          </DialogActions>
-        </Dialog>
+          key={"MessageDialog" + this.state.refreshDialogKey}
+          title={this.state.dialogTitle}
+          content={this.state.dialogContent}
+        />
 
         <Snackbar
           open={this.state.openAlert}
@@ -661,7 +601,7 @@ class App extends React.Component {
                         } else {
                           this.approve(
                             this.state.fromTokenAddress,
-                            NETWORKS[this.state.chainId].swap.default.address,
+                            EthereumNetworks[this.state.chainId].swap.default.address,
                             this.state.fromAmount
                           );
                         }
