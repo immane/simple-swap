@@ -9,6 +9,9 @@ import clsx from "clsx";
 import { makeStyles } from "@material-ui/core/styles";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
 
+import { ToastContainer, toast } from "material-react-toastify";
+import "material-react-toastify/dist/ReactToastify.css";
+
 import InputAdornment from "@material-ui/core/InputAdornment";
 import TextField from "@material-ui/core/TextField";
 
@@ -24,22 +27,16 @@ import Typography from "@material-ui/core/Typography";
 import Button from "@material-ui/core/Button";
 import MenuIcon from "@material-ui/icons/Menu";
 
-import Snackbar from "@material-ui/core/Snackbar";
-import MuiAlert from "@material-ui/lab/Alert";
-
 // Component
 import MenuDrawer from "./components/MenuDrawer";
 import MessageDialog from "./components/MessageDialog";
 
 // Ethereum
-import Web3 from "web3";
-import bep20TokenAbi from "./abi/BEP20Token.abi.json";
-import iUniswapV2Router02 from "./abi/IUniswapV2Router02.abi.json";
+import Ethereum from "./utils/Ethereum";
 import EthereumNetworks from "./constant/EthereumNetworks.json";
 
 import logo from "./logo.svg";
 import "./App.css";
-
 
 // Main
 class App extends React.Component {
@@ -47,11 +44,6 @@ class App extends React.Component {
     super(props);
 
     this.state = {
-      // Alert
-      openAlert: false,
-      alertType: "info",
-      alertMessage: "Information",
-
       // Dialog
       openDialog: false,
       dialogTitle: "Dialog",
@@ -65,10 +57,10 @@ class App extends React.Component {
       // Ethereum
       chainId: 0,
       walletAddress: null,
-      // fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
-      // toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
-      fromTokenAddress: "0x0",
-      toTokenAddress: "0x0",
+      fromTokenAddress: "0x1372085c45Ca82139442Ac3a82db0Ec652066CDB",
+      toTokenAddress: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+      // fromTokenAddress: "0x0",
+      // toTokenAddress: "0x0",
       fromTokenInfo: {},
       toTokenInfo: {},
       fromBalance: 0,
@@ -82,26 +74,6 @@ class App extends React.Component {
       onChange: PropTypes.func.isRequired,
     };
   }
-
-  // Alert
-
-  showToast = (message, type = "info") => {
-    return new Promise(() => {
-      this.setState({
-        alertMessage: message,
-        alertType: type,
-        openAlert: true,
-      });
-    });
-  };
-
-  handleAlertClose = (event, reason) => {
-    if (reason === "clickaway") {
-      return;
-    }
-
-    this.setState({ openAlert: false });
-  };
 
   // Dialog
 
@@ -165,7 +137,7 @@ class App extends React.Component {
   };
 
   storeTokenInfo = async (address, variable) => {
-    const info = await this.getTokenInfo(address);
+    const info = await Ethereum.getTokenInfo(address);
     if (info) {
       this.setState({ [variable]: info });
       return info;
@@ -176,183 +148,6 @@ class App extends React.Component {
   refreshTokenInfo = () => {
     this.storeTokenInfo(this.state.fromTokenAddress, "fromTokenInfo");
     this.storeTokenInfo(this.state.toTokenAddress, "toTokenInfo");
-  };
-
-  // Ethereum
-
-  connectWalletRequest = async () => {
-    if (window.ethereum) {
-      try {
-        const ethereum = window.ethereum;
-        const accounts = await ethereum.request({
-          method: "eth_requestAccounts",
-        });
-        const wallet = accounts[0];
-
-        const chainId = await ethereum.request({ method: "eth_chainId" });
-        this.setState({ chainId: parseInt(chainId, 16) });
-        console.log("Connected chain id", chainId);
-
-        ethereum.on("chainChanged", (_chainId) => {
-          this.showToast(
-            "Wallet chain has changed, auto refreshing...",
-            "warning"
-          );
-          setTimeout(() => window.location.reload(), 5e3);
-        });
-
-        if (wallet) {
-          this.setState({
-            walletAddress: wallet,
-          });
-          return wallet;
-        }
-      } catch (e) {
-        this.showToast(e.message, "error");
-      }
-    } else {
-      this.showToast("No ethereum environment found", "error");
-    }
-  };
-
-  openContract = async (address, abi = bep20TokenAbi) => {
-    const web3 = new Web3(window.ethereum);
-    const wallet = await this.connectWalletRequest();
-    if (wallet) {
-      try {
-        const contract = new web3.eth.Contract(abi, address, {
-          from: wallet,
-          // gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        });
-        console.log(`Contract [${address}]`, contract);
-        return contract;
-      } catch (e) {
-        this.showToast(e.message, "error");
-      }
-    } else {
-      return false;
-    }
-  };
-
-  getTokenInfo = async (address) => {
-    const wallet = await this.connectWalletRequest();
-    const contract = await this.openContract(address);
-    if (contract) {
-      try {
-        const tokenInfo = {
-          symbol: await contract.methods?.symbol().call(),
-          name: await contract.methods?.name().call(),
-          decimals: await contract.methods?.decimals().call(),
-          totalSupply: await contract.methods?.totalSupply().call(),
-          balance:
-            (await contract.methods?.balanceOf(wallet).call()) /
-            10 ** (await contract.methods?.decimals().call()),
-          address: address,
-        };
-
-        return tokenInfo;
-      } catch (e) {
-        this.showToast(e.message, "error");
-      }
-    } else return false;
-  };
-
-  sendTransaction = async (contractAddress, rawData) => {
-    const ethereum = window.ethereum;
-    const web3 = new Web3(ethereum);
-    const wallet = await this.connectWalletRequest();
-    const nonce = await web3.eth.getTransactionCount(wallet);
-
-    /*  
-      // Some ethereum browser cannot recognize
-      const rawDataInstance = Object.prototype.toString.call(rawData);
-      let data = rawData;
-      if ("[object AsyncFunction]" === rawDataInstance) {
-        data = await rawData();
-      } else if ("[object Function]" === rawDataInstance) {
-        data = rawData();
-      }
-    */
-    const data = await rawData();
-
-    const params = [
-      {
-        from: wallet,
-        nonce: web3.utils.toHex(nonce),
-        gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-        gasLimit: web3.utils.toHex(200000),
-        to: contractAddress,
-        value: "0x0",
-        data: data,
-      },
-    ];
-    console.log("Raw transaction: ", params);
-
-    ethereum
-      .request({
-        method: "eth_sendTransaction",
-        params,
-      })
-      .then(() => {
-        this.refreshTokenInfo();
-        this.showToast("Send transaction success", "success");
-      })
-      .catch((err) => {
-        this.showToast(err.message, "error");
-      });
-  };
-
-  transfer = async (tokenAddress, to, amount) => {
-    return this.sendTransaction(tokenAddress, async () => {
-      const contract = await this.openContract(tokenAddress);
-      const decimals = await contract.methods.decimals().call();
-      return contract.methods
-        .transfer(
-          to,
-          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
-        )
-        .encodeABI();
-    });
-  };
-
-  approve = async (tokenAddress, spender, amount) => {
-    return this.sendTransaction(tokenAddress, async () => {
-      const contract = await this.openContract(tokenAddress);
-      const decimals = await contract.methods.decimals().call();
-      return contract.methods
-        .approve(
-          spender,
-          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
-        )
-        .encodeABI();
-    });
-  };
-
-  swap = async (fromAddress, toAddress, fromAmount, toAmountMin = 0) => {
-    const swapRouter = EthereumNetworks[this.state.chainId].swap.default.address;
-    return this.sendTransaction(swapRouter, async () => {
-      const fromToken = await this.openContract(fromAddress);
-      const toToken = await this.openContract(toAddress);
-      const contract = await this.openContract(swapRouter, iUniswapV2Router02);
-      const fromDecimals = await fromToken.methods.decimals().call();
-      const toDecimals = await toToken.methods.decimals().call();
-
-      return contract.methods
-        .swapExactTokensForTokens(
-          Web3.utils.toBN(fromAmount).mul(Web3.utils.toBN(`1e${fromDecimals}`)),
-          Web3.utils.toBN(toAmountMin).mul(Web3.utils.toBN(`1e${toDecimals}`)),
-          [
-            ...new Set([
-              fromAddress,
-              EthereumNetworks[this.state.chainId].weth,
-              toAddress,
-            ]),
-          ],
-          this.state.walletAddress,
-          Date.now() + 1000 * 60 * 3
-        )
-        .encodeABI();
-    });
   };
 
   render() {
@@ -379,7 +174,16 @@ class App extends React.Component {
             <Typography variant="h6" className={classes.title}>
               Simple Swap
             </Typography>
-            <Button color="inherit" onClick={this.connectWalletRequest}>
+            <Button
+              color="inherit"
+              onClick={async () => {
+                const wallet = await Ethereum.connectWalletRequest();
+                this.setState({
+                  walletAddress: wallet.address,
+                  chainId: wallet.chainId,
+                });
+              }}
+            >
               {this.state.walletAddress
                 ? `${this.state.walletAddress.slice(
                     0,
@@ -402,20 +206,18 @@ class App extends React.Component {
           content={this.state.dialogContent}
         />
 
-        <Snackbar
-          open={this.state.openAlert}
-          autoHideDuration={6000}
-          onClose={this.handleAlertClose}
-        >
-          <MuiAlert
-            elevation={6}
-            variant="filled"
-            severity={this.state.alertType}
-            onClose={this.handleAlertClose}
-          >
-            {this.state.alertMessage}
-          </MuiAlert>
-        </Snackbar>
+        <ToastContainer
+          position="bottom-center"
+          autoClose={6000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          limit={3}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
 
         <Router>
           <Switch>
@@ -438,7 +240,7 @@ class App extends React.Component {
                           <InputAdornment position="end">
                             <IconButton
                               onClick={() => {
-                                this.getTokenInfo(
+                                Ethereum.getTokenInfo(
                                   this.state.fromTokenAddress
                                 ).then((res) => {
                                   if (res) {
@@ -594,14 +396,12 @@ class App extends React.Component {
                       endIcon={<PeopleIcon />}
                       onClick={() => {
                         if (!this.state.chainId) {
-                          this.showToast(
-                            "Please connect to wallet first",
-                            "warning"
-                          );
+                          toast.warning("Please connect to wallet first");
                         } else {
-                          this.approve(
+                          Ethereum.approve(
                             this.state.fromTokenAddress,
-                            EthereumNetworks[this.state.chainId].swap.default.address,
+                            EthereumNetworks[parseInt(this.state.chainId, 16)]
+                              .swap.default.address,
                             this.state.fromAmount
                           );
                         }
@@ -619,13 +419,16 @@ class App extends React.Component {
                         },
                       }))}
                       endIcon={<SwapVertIcon />}
-                      onClick={this.swap.bind(
-                        this,
-                        this.state.fromTokenAddress,
-                        this.state.toTokenAddress,
-                        this.state.fromAmount,
-                        this.state.toAmount
-                      )}
+                      onClick={() => {
+                        Ethereum.swap(
+                          parseInt(this.state.chainId, 16),
+                          this.state.fromTokenAddress,
+                          this.state.toTokenAddress,
+                          this.state.fromAmount,
+                          this.state.toAmount,
+                          this.state.walletAddress
+                        );
+                      }}
                     >
                       SWAP
                     </Button>
