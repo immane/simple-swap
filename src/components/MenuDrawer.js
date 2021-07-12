@@ -42,7 +42,7 @@ export default class MenuDrawer extends React.Component {
   list = (anchor) => (
     <div
       className={clsx(this.classes.list)}
-      style={{ width: 200 }}
+      style={{ width: 250 }}
       role="presentation"
       onClick={this.toggleDrawer(anchor, false)}
       onKeyDown={this.toggleDrawer(anchor, false)}

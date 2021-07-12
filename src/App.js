@@ -208,7 +208,7 @@ class App extends React.Component {
 
         <ToastContainer
           position="bottom-center"
-          autoClose={6000}
+          autoClose={5000}
           hideProgressBar={false}
           newestOnTop
           closeOnClick
@@ -338,7 +338,7 @@ class App extends React.Component {
                           <InputAdornment position="end">
                             <IconButton
                               onClick={() => {
-                                this.getTokenInfo(
+                                Ethereum.getTokenInfo(
                                   this.state.toTokenAddress
                                 ).then((res) => {
                                   if (res) {

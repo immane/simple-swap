@@ -8,10 +8,25 @@ import bep20TokenAbi from "../abi/BEP20Token.abi.json";
 import iUniswapV2Router02 from "../abi/IUniswapV2Router02.abi.json";
 import EthereumNetworks from "../constant/EthereumNetworks.json";
 
+const BN = Web3.utils.BN;
+
 export default class Ethereum {
+  static convertAmountToTokenWei = (amount, decimals) => {
+    const ethDecimals = 18;
+    const diffDecimals = decimals - ethDecimals;
+
+    const wei = new BN(Web3.utils.toWei(String(amount)));
+    const base = new BN(10).pow(new BN(decimals - ethDecimals));
+
+    return diffDecimals >= 0 ? wei.mul(base) : wei.div(base)
+  };
+
   static connectWalletRequest = async () => {
     if (window.ethereum) {
       try {
+        // debug
+        window.web3 = new Web3(window.ethereum);
+
         const ethereum = window.ethereum;
         const accounts = await ethereum.request({
           method: "eth_requestAccounts",
@@ -77,7 +92,8 @@ export default class Ethereum {
           symbol: await contract.methods?.symbol().call(),
           name: await contract.methods?.name().call(),
           decimals: await contract.methods?.decimals().call(),
-          totalSupply: await contract.methods?.totalSupply().call(),
+          totalSupply: await contract.methods?.totalSupply().call() /
+            10 ** (await contract.methods?.decimals().call()),
           balance:
             (await contract.methods?.balanceOf(wallet.address).call()) /
             10 ** (await contract.methods?.decimals().call()),
@@ -144,7 +160,7 @@ export default class Ethereum {
       return contract.methods
         .transfer(
           to,
-          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
+          this.convertAmountToTokenWei(amount, decimals)
         )
         .encodeABI();
     });
@@ -157,7 +173,7 @@ export default class Ethereum {
       return contract.methods
         .approve(
           spender,
-          Web3.utils.toBN(amount).mul(Web3.utils.toBN(`1e${decimals}`))
+          this.convertAmountToTokenWei(amount, decimals)
         )
         .encodeABI();
     });
@@ -181,8 +197,8 @@ export default class Ethereum {
 
       return contract.methods
         .swapExactTokensForTokens(
-          Web3.utils.toBN(fromAmount).mul(Web3.utils.toBN(`1e${fromDecimals}`)),
-          Web3.utils.toBN(toAmountMin).mul(Web3.utils.toBN(`1e${toDecimals}`)),
+          this.convertAmountToTokenWei(fromAmount, fromDecimals),
+          this.convertAmountToTokenWei(toAmountMin, toDecimals),
           [
             ...new Set([
               fromAddress,
