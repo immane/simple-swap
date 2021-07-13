@@ -73,6 +73,9 @@ class App extends React.Component {
       name: PropTypes.string.isRequired,
       onChange: PropTypes.func.isRequired,
     };
+
+    // ethereum init
+    Ethereum.init();
   }
 
   // Dialog

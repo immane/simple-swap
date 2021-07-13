@@ -8,9 +8,18 @@ import bep20TokenAbi from "../abi/BEP20Token.abi.json";
 import iUniswapV2Router02 from "../abi/IUniswapV2Router02.abi.json";
 import EthereumNetworks from "../constant/EthereumNetworks.json";
 
-const BN = Web3.utils.BN;
+const ethereum = window.ethereum;
+const web3 = new Web3(window.ethereum);
+const BN = web3.utils.BN;
 
 export default class Ethereum {
+  static init() {
+    ethereum.on("chainChanged", (_chainId) => {
+      toast.warn("Wallet chain has changed, auto refreshing...");
+      setTimeout(() => window.location.reload(), 5e3);
+    });
+  }
+
   static convertAmountToTokenWei = (amount, decimals) => {
     const ethDecimals = 18;
     const diffDecimals = decimals - ethDecimals;
@@ -18,16 +27,12 @@ export default class Ethereum {
     const wei = new BN(Web3.utils.toWei(String(amount)));
     const base = new BN(10).pow(new BN(decimals - ethDecimals));
 
-    return diffDecimals >= 0 ? wei.mul(base) : wei.div(base)
+    return diffDecimals >= 0 ? wei.mul(base) : wei.div(base);
   };
 
   static connectWalletRequest = async () => {
-    if (window.ethereum) {
+    if (ethereum) {
       try {
-        // debug
-        window.web3 = new Web3(window.ethereum);
-
-        const ethereum = window.ethereum;
         const accounts = await ethereum.request({
           method: "eth_requestAccounts",
         });
@@ -35,20 +40,6 @@ export default class Ethereum {
 
         const chainId = await ethereum.request({ method: "eth_chainId" });
         console.log("Connected chain id", chainId);
-
-        ethereum.on("chainChanged", (_chainId) => {
-          toast.warn("Wallet chain has changed, auto refreshing...", {
-            position: "bottom-center",
-            autoClose: 6000,
-            hideProgressBar: false,
-            closeOnClick: false,
-            pauseOnHover: false,
-            draggable: false,
-            progress: undefined,
-            limit: 1,
-          });
-          setTimeout(() => window.location.reload(), 5e3);
-        });
 
         if (wallet) {
           return {
@@ -65,7 +56,6 @@ export default class Ethereum {
   };
 
   static openContract = async (address, abi = bep20TokenAbi) => {
-    const web3 = new Web3(window.ethereum);
     const wallet = await this.connectWalletRequest();
     if (wallet) {
       try {
@@ -92,7 +82,8 @@ export default class Ethereum {
           symbol: await contract.methods?.symbol().call(),
           name: await contract.methods?.name().call(),
           decimals: await contract.methods?.decimals().call(),
-          totalSupply: await contract.methods?.totalSupply().call() /
+          totalSupply:
+            (await contract.methods?.totalSupply().call()) /
             10 ** (await contract.methods?.decimals().call()),
           balance:
             (await contract.methods?.balanceOf(wallet.address).call()) /
@@ -108,8 +99,6 @@ export default class Ethereum {
   };
 
   static sendTransaction = async (contractAddress, rawData) => {
-    const ethereum = window.ethereum;
-    const web3 = new Web3(ethereum);
     const wallet = await this.connectWalletRequest();
     const nonce = await web3.eth.getTransactionCount(wallet.address);
 
@@ -146,7 +135,7 @@ export default class Ethereum {
       .then(() => {
         // TODO: Refresh token
         // this.refreshTokenInfo();
-        toast.success("Send transaction success");
+        toast.success("Transaction sent");
       })
       .catch((err) => {
         toast.error(err.message);
@@ -158,10 +147,7 @@ export default class Ethereum {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .transfer(
-          to,
-          this.convertAmountToTokenWei(amount, decimals)
-        )
+        .transfer(to, this.convertAmountToTokenWei(amount, decimals))
         .encodeABI();
     });
   };
@@ -171,10 +157,7 @@ export default class Ethereum {
       const contract = await this.openContract(tokenAddress);
       const decimals = await contract.methods.decimals().call();
       return contract.methods
-        .approve(
-          spender,
-          this.convertAmountToTokenWei(amount, decimals)
-        )
+        .approve(spender, this.convertAmountToTokenWei(amount, decimals))
         .encodeABI();
     });
   };
